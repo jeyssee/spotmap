@@ -163,9 +163,9 @@ export default function GroupMap({ session }) {
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
-              attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>'
-              url="https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png"
-            />
+  attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+/>
             <MapRefCapture mapRef={mapRef} />
             <MapClickHandler onMapClick={handleMapClick} />
 

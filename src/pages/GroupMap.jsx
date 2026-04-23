@@ -135,9 +135,9 @@ export default function GroupMap({ session }) {
         <div className="relative flex-1">
           <MapContainer center={[48.8566, 2.3522]} zoom={13} style={{ height: '100%', width: '100%' }}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png"
-            />
+  attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+/>
             <MapRefCapture mapRef={mapRef} />
             <MapClickHandler onMapClick={handleMapClick} />
 

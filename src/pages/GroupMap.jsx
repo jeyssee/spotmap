@@ -17,7 +17,6 @@ export const CATEGORIES = {
   other: { label: '📍 Autre', color: '#64748b' },
 }
 
-// Crée une icône colorée SVG pour chaque catégorie
 function createColoredIcon(color) {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
@@ -36,17 +35,13 @@ function createColoredIcon(color) {
 }
 
 function MapClickHandler({ onMapClick }) {
-  useMapEvents({
-    click: (e) => onMapClick(e.latlng),
-  })
+  useMapEvents({ click: (e) => onMapClick(e.latlng) })
   return null
 }
 
 function MapRefCapture({ mapRef }) {
   const map = useMap()
-  useEffect(() => {
-    mapRef.current = map
-  }, [map])
+  useEffect(() => { mapRef.current = map }, [map])
   return null
 }
 
@@ -64,12 +59,10 @@ export default function GroupMap({ session }) {
 
   useEffect(() => {
     fetchData()
-
     const channel = supabase
       .channel(`pins-${groupId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pins', filter: `group_id=eq.${groupId}` }, () => fetchPins())
       .subscribe()
-
     return () => supabase.removeChannel(channel)
   }, [groupId])
 
@@ -106,7 +99,12 @@ export default function GroupMap({ session }) {
 
   const filteredPins = activeCategory ? pins.filter(p => p.category === activeCategory) : pins
 
-  if (loading) return <div style={{ height: '100vh' }} className="flex items-center justify-center"><p>Chargement...</p></div>
+  if (loading) return (
+    <div style={{ height: '100vh' }} className="flex items-center justify-center">
+      <p>Chargement...</p>
+    </div>
+  )
+
   if (!group) return <div className="p-8"><p>Groupe introuvable</p></div>
 
   return (
@@ -135,9 +133,9 @@ export default function GroupMap({ session }) {
         <div className="relative flex-1">
           <MapContainer center={[48.8566, 2.3522]} zoom={13} style={{ height: '100%', width: '100%' }}>
             <TileLayer
-  attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-/>
+              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            />
             <MapRefCapture mapRef={mapRef} />
             <MapClickHandler onMapClick={handleMapClick} />
 
@@ -163,7 +161,7 @@ export default function GroupMap({ session }) {
             <PinForm
               position={clickedPos}
               groupId={groupId}
-              userId={session.user.id}
+              userId={session?.user?.id}
               categories={CATEGORIES}
               onClose={() => setClickedPos(null)}
               onCreated={handlePinCreated}
@@ -192,7 +190,7 @@ export default function GroupMap({ session }) {
         </div>
 
         {/* Sidebar */}
-        {panelOpen && (
+        {panelOpen && session && (
           <SidePanel
             pins={pins}
             categories={CATEGORIES}

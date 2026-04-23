@@ -1,158 +1,146 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const REACTIONS = ['🔥', '❤️', '👍']
+function timeAgo(dateStr) {
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diff = Math.floor((now - date) / 1000)
+  if (diff < 60) return "à l'instant"
+  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`
+  if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
+  return `il y a ${Math.floor(diff / 86400)}j`
+}
 
-export default function PinDetail({ pin, session, categories, onClose, onDeleted, onReactionUpdate }) {
-  const [comments, setComments] = useState([])
-  const [reactions, setReactions] = useState([])
-  const [newComment, setNewComment] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+export default function SidePanel({ pins, categories, activeCategory, onCategoryChange, onPinClick, filteredPins, session, groupId }) {
+  const [activeTab, setActiveTab] = useState('spots')
+  const [members, setMembers] = useState([])
 
-  const isOwner = pin.user_id === session.user.id
+  const userId = session?.user?.id
 
   useEffect(() => {
-    fetchComments()
-    fetchReactions()
-  }, [pin.id])
+    if (activeTab === 'members') fetchMembers()
+  }, [activeTab])
 
-  const fetchComments = async () => {
+  const fetchMembers = async () => {
     const { data } = await supabase
-      .from('comments')
+      .from('group_members')
       .select('*, profiles(username)')
-      .eq('pin_id', pin.id)
-      .order('created_at', { ascending: true })
-    setComments(data || [])
+      .eq('group_id', groupId)
+    setMembers(data || [])
   }
-
-  const fetchReactions = async () => {
-    const { data } = await supabase
-      .from('reactions')
-      .select('*')
-      .eq('pin_id', pin.id)
-    setReactions(data || [])
-  }
-
-  const toggleReaction = async (type) => {
-    const existing = reactions.find(r => r.user_id === session.user.id && r.type === type)
-    if (existing) {
-      await supabase.from('reactions').delete().eq('id', existing.id)
-    } else {
-      await supabase.from('reactions').insert({ pin_id: pin.id, user_id: session.user.id, type })
-    }
-    fetchReactions()
-    onReactionUpdate()
-  }
-
-  const addComment = async (e) => {
-    e.preventDefault()
-    if (!newComment.trim()) return
-    setLoading(true)
-    const { error } = await supabase.from('comments').insert({
-      pin_id: pin.id,
-      user_id: session.user.id,
-      content: newComment,
-    })
-    if (!error) { setNewComment(''); fetchComments() }
-    setLoading(false)
-  }
-
-  const deletePin = async () => {
-    if (!confirm('Supprimer ce spot ?')) return
-    setDeleting(true)
-    const { error } = await supabase.from('pins').delete().eq('id', pin.id)
-    if (!error) onDeleted()
-    setDeleting(false)
-  }
-
-  // Compte les réactions par type
-  const reactionCounts = REACTIONS.reduce((acc, type) => {
-    acc[type] = reactions.filter(r => r.type === type).length
-    return acc
-  }, {})
-
-  const myReactions = reactions.filter(r => r.user_id === session.user.id).map(r => r.type)
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white rounded-xl shadow-xl p-6 z-[1000] max-h-[75vh] overflow-y-auto">
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex-1 pr-2">
-          <span
-            className="text-xs px-2 py-1 rounded-full text-white"
-            style={{ backgroundColor: categories[pin.category]?.color || '#64748b' }}
-          >
-            {categories[pin.category]?.label || '📍 Autre'}
-          </span>
-          <h3 className="font-bold text-lg text-slate-900 mt-2">{pin.title}</h3>
-          <p className="text-xs text-slate-500">par {pin.profiles?.username || 'Anonyme'}</p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {isOwner && (
-            <button onClick={deletePin} disabled={deleting} className="text-red-400 hover:text-red-600 text-lg disabled:opacity-50" title="Supprimer">
-              🗑️
-            </button>
-          )}
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
-        </div>
+    <div style={{ width: '288px', flexShrink: 0 }} className="bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+
+      {/* Onglets */}
+      <div className="flex border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('spots')}
+          className={`flex-1 py-3 text-sm font-medium transition ${activeTab === 'spots' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          📍 Spots
+        </button>
+        <button
+          onClick={() => setActiveTab('members')}
+          className={`flex-1 py-3 text-sm font-medium transition ${activeTab === 'members' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          👥 Membres
+        </button>
       </div>
 
-      {pin.description && (
-        <p className="text-sm text-slate-700 mb-4 bg-slate-50 p-3 rounded-lg">{pin.description}</p>
+      {activeTab === 'spots' && (
+        <>
+          {/* Filtres */}
+          <div className="p-3 border-b border-slate-100">
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => onCategoryChange(null)}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${activeCategory === null ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              >
+                Tous ({pins.length})
+              </button>
+              {Object.entries(categories).map(([key, { label, color }]) => {
+                const count = pins.filter(p => p.category === key).length
+                if (count === 0) return null
+                return (
+                  <button
+                    key={key}
+                    onClick={() => onCategoryChange(activeCategory === key ? null : key)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${activeCategory === key ? 'text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    style={activeCategory === key ? { backgroundColor: color } : {}}
+                  >
+                    {label} ({count})
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Liste spots */}
+          <div className="flex-1 overflow-y-auto">
+            {filteredPins.length === 0 ? (
+              <p className="text-center text-slate-400 text-sm p-6">Aucun spot dans cette catégorie</p>
+            ) : (
+              filteredPins.map((pin) => {
+                const commentCount = pin.comments?.length || 0
+                const reactionCount = pin.reactions?.length || 0
+                const isOwner = userId && pin.user_id === userId
+                return (
+                  <div
+                    key={pin.id}
+                    onClick={() => onPinClick(pin)}
+                    className="px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span
+                        className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
+                        style={{ backgroundColor: categories[pin.category]?.color || '#64748b' }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-slate-900 truncate">{pin.title}</p>
+                        <p className="text-xs text-slate-500">par {pin.profiles?.username || 'Anonyme'}</p>
+                        {pin.description && (
+                          <p className="text-xs text-slate-400 mt-0.5 truncate">{pin.description}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-1">
+                          {commentCount > 0 && <span className="text-xs text-slate-400">💬 {commentCount}</span>}
+                          {reactionCount > 0 && <span className="text-xs text-slate-400">⚡ {reactionCount}</span>}
+                          <span className="text-xs text-slate-300">{timeAgo(pin.created_at)}</span>
+                        </div>
+                      </div>
+                      {isOwner && (
+                        <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded flex-shrink-0">moi</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </>
       )}
 
-      {/* Réactions */}
-      <div className="flex gap-2 mb-4">
-        {REACTIONS.map((type) => (
-          <button
-            key={type}
-            onClick={() => toggleReaction(type)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm border transition ${
-              myReactions.includes(type)
-                ? 'bg-blue-50 border-blue-300 text-blue-700'
-                : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            {type}
-            {reactionCounts[type] > 0 && (
-              <span className="text-xs font-medium">{reactionCounts[type]}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Commentaires */}
-      <div className="border-t pt-4">
-        <h4 className="font-semibold text-sm mb-3 text-slate-800">Commentaires ({comments.length})</h4>
-        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
-          {comments.length === 0 ? (
-            <p className="text-xs text-slate-400">Aucun commentaire pour l'instant</p>
+      {activeTab === 'members' && (
+        <div className="flex-1 overflow-y-auto">
+          {members.length === 0 ? (
+            <p className="text-center text-slate-400 text-sm p-6">Chargement...</p>
           ) : (
-            comments.map((c) => (
-              <div key={c.id} className="bg-slate-50 p-2 rounded text-sm">
-                <p className="font-semibold text-xs text-slate-600">{c.profiles?.username || 'Anonyme'}</p>
-                <p className="text-slate-700">{c.content}</p>
+            members.map((m) => (
+              <div key={m.user_id} className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm flex-shrink-0">
+                  {m.profiles?.username?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{m.profiles?.username || 'Anonyme'}</p>
+                  {m.user_id === userId && (
+                    <p className="text-xs text-blue-500">Vous</p>
+                  )}
+                </div>
               </div>
             ))
           )}
         </div>
-        <form onSubmit={addComment} className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Ajouter un avis..."
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            disabled={loading || !newComment.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
-          >
-            Envoyer
-          </button>
-        </form>
-      </div>
+      )}
     </div>
   )
 }

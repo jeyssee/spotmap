@@ -109,9 +109,12 @@ export default function GroupMap({ session }) {
 
   return (
     <div style={{ height: '100vh' }} className="flex flex-col">
+
       {/* Header */}
       <div className="bg-white shadow-sm px-4 py-3 flex items-center gap-4 z-10 flex-shrink-0">
-        <button onClick={() => navigate('/')} className="text-sm text-slate-500 hover:text-slate-700">← Retour</button>
+        <button onClick={() => navigate('/')} className="text-sm text-slate-500 hover:text-slate-700">
+          ← Retour
+        </button>
         <div className="flex-1">
           <h1 className="text-lg font-bold text-slate-900 leading-tight">{group.name}</h1>
           <p className="text-xs text-slate-500">
@@ -124,11 +127,14 @@ export default function GroupMap({ session }) {
         </div>
       </div>
 
+      {/* Search mobile */}
       <div className="md:hidden px-4 py-2 bg-white border-b">
         <SearchBar onResult={handleSearchResult} />
       </div>
 
+      {/* Contenu */}
       <div className="flex flex-1 overflow-hidden">
+
         {/* Carte */}
         <div className="relative flex-1">
           <MapContainer center={[48.8566, 2.3522]} zoom={13} style={{ height: '100%', width: '100%' }}>
@@ -154,9 +160,16 @@ export default function GroupMap({ session }) {
               </Marker>
             ))}
 
-            {clickedPos && <Marker position={[clickedPos.lat, clickedPos.lng]} />}
+            {/* Marker temporaire au clic */}
+            {clickedPos && (
+              <Marker
+                position={[clickedPos.lat, clickedPos.lng]}
+                icon={createColoredIcon('#94a3b8')}
+              />
+            )}
           </MapContainer>
 
+          {/* Formulaire nouveau pin */}
           {clickedPos && (
             <PinForm
               position={clickedPos}
@@ -169,6 +182,7 @@ export default function GroupMap({ session }) {
             />
           )}
 
+          {/* Détail d'un pin */}
           {selectedPin && (
             <PinDetail
               pin={selectedPin}
@@ -180,7 +194,7 @@ export default function GroupMap({ session }) {
             />
           )}
 
-          {/* Bouton toggle */}
+          {/* Bouton toggle sidebar */}
           <button
             onClick={() => setPanelOpen(!panelOpen)}
             className="absolute top-1/2 right-0 -translate-y-1/2 bg-white border border-slate-200 border-r-0 rounded-l-lg px-1.5 py-4 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition z-[1000] shadow-sm"
@@ -202,6 +216,7 @@ export default function GroupMap({ session }) {
             groupId={groupId}
           />
         )}
+
       </div>
     </div>
   )

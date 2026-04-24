@@ -30,15 +30,20 @@ export default function Groups({ session }) {
   }
 
   const fetchGroups = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('groups')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (error) setError(error.message)
-    else setGroups(data)
-    setLoading(false)
+  setLoading(true)
+  const { data, error } = await supabase
+    .from('group_members')
+    .select('groups(*)')
+    .eq('user_id', session.user.id)
+    .order('joined_at', { ascending: false })
+
+  if (error) {
+    setError(error.message)
+  } else {
+    setGroups(data.map(d => d.groups).filter(Boolean))
   }
+  setLoading(false)
+}
 
   const createGroup = async (e) => {
     e.preventDefault()

@@ -11,9 +11,10 @@ function timeAgo(dateStr) {
   return `il y a ${Math.floor(diff / 86400)}j`
 }
 
-export default function SidePanel({ pins, categories, activeCategory, onCategoryChange, onPinClick, filteredPins, session, groupId }) {
+export default function SidePanel({ pins, categories, activeCategory, onCategoryChange, onPinClick, filteredPins, session, groupId, activeMember, onMemberFilter }) {
   const [activeTab, setActiveTab] = useState('spots')
   const [members, setMembers] = useState([])
+  const [sortOrder, setSortOrder] = useState('desc')
 
   const userId = session?.user?.id
 
@@ -28,6 +29,12 @@ export default function SidePanel({ pins, categories, activeCategory, onCategory
       .eq('group_id', groupId)
     setMembers(data || [])
   }
+
+  const sortedPins = [...filteredPins].sort((a, b) => {
+    const da = new Date(a.created_at)
+    const db = new Date(b.created_at)
+    return sortOrder === 'desc' ? db - da : da - db
+  })
 
   return (
     <div style={{ width: '288px', flexShrink: 0 }} className="bg-white border-l border-slate-200 flex flex-col overflow-hidden">
@@ -50,8 +57,17 @@ export default function SidePanel({ pins, categories, activeCategory, onCategory
 
       {activeTab === 'spots' && (
         <>
-          {/* Filtres */}
-          <div className="p-3 border-b border-slate-100">
+          {/* Filtres + tri */}
+          <div className="p-3 border-b border-slate-100 space-y-2">
+            {/* Filtre membre actif */}
+            {activeMember && (
+              <div className="flex items-center justify-between bg-blue-50 px-2 py-1 rounded-lg">
+                <span className="text-xs text-blue-700">Spots de {activeMember.username}</span>
+                <button onClick={() => onMemberFilter(null)} className="text-blue-400 hover:text-blue-600 text-xs">✕</button>
+              </div>
+            )}
+
+            {/* Filtre catégorie */}
             <div className="flex flex-wrap gap-1.5">
               <button
                 onClick={() => onCategoryChange(null)}
@@ -74,14 +90,25 @@ export default function SidePanel({ pins, categories, activeCategory, onCategory
                 )
               })}
             </div>
+
+            {/* Tri par date */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">Trier :</span>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                {sortOrder === 'desc' ? '↓ Plus récent' : '↑ Plus ancien'}
+              </button>
+            </div>
           </div>
 
           {/* Liste spots */}
           <div className="flex-1 overflow-y-auto">
-            {filteredPins.length === 0 ? (
-              <p className="text-center text-slate-400 text-sm p-6">Aucun spot dans cette catégorie</p>
+            {sortedPins.length === 0 ? (
+              <p className="text-center text-slate-400 text-sm p-6">Aucun spot</p>
             ) : (
-              filteredPins.map((pin) => {
+              sortedPins.map((pin) => {
                 const commentCount = pin.comments?.length || 0
                 const reactionCount = pin.reactions?.length || 0
                 const isOwner = userId && pin.user_id === userId
@@ -125,19 +152,39 @@ export default function SidePanel({ pins, categories, activeCategory, onCategory
           {members.length === 0 ? (
             <p className="text-center text-slate-400 text-sm p-6">Chargement...</p>
           ) : (
-            members.map((m) => (
-              <div key={m.user_id} className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm flex-shrink-0">
-                  {m.profiles?.username?.[0]?.toUpperCase() || '?'}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{m.profiles?.username || 'Anonyme'}</p>
+            members.map((m) => {
+              const spotCount = pins.filter(p => p.user_id === m.user_id).length
+              const isActive = activeMember?.id === m.user_id
+              return (
+                <div
+                  key={m.user_id}
+                  onClick={() => onMemberFilter(isActive ? null : { id: m.user_id, username: m.profiles?.username })}
+                  className={`px-4 py-3 border-b border-slate-100 flex items-center gap-3 cursor-pointer transition ${isActive ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${isActive ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-600'}`}>
+                    {m.profiles?.username?.[0]?.toUpperCase() || '?'}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-900">{m.profiles?.username || 'Anonyme'}</p>
+                    <p className="text-xs text-slate-400">{spotCount} spot{spotCount > 1 ? 's' : ''}</p>
+                  </div>
                   {m.user_id === userId && (
-                    <p className="text-xs text-blue-500">Vous</p>
+                    <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">moi</span>
+                  )}
+                  {isActive && (
+                    <span className="text-xs text-blue-500">✓</span>
                   )}
                 </div>
-              </div>
-            ))
+              )
+            })
+          )}
+          {activeMember && (
+            <button
+              onClick={() => onMemberFilter(null)}
+              className="w-full py-2 text-xs text-slate-500 hover:text-slate-700 border-t border-slate-100"
+            >
+              Voir tous les spots
+            </button>
           )}
         </div>
       )}

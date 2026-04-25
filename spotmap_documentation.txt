@@ -1,0 +1,275 @@
+==============================================
+         SPOTMAP — DOCUMENTATION COMPLÈTE
+==============================================
+
+CONCEPT
+-------
+SpotMap est une application web collaborative permettant à des groupes
+d'amis de partager une carte commune. Chaque membre peut épingler des
+adresses, lieux ou spots sur la carte, visibles par tous les membres
+du groupe en temps réel. L'objectif est de remplacer le partage de
+liens en vrac sur WhatsApp ou Instagram par une carte partagée et
+interactive.
+
+
+STACK TECHNIQUE
+---------------
+- Frontend        : React 19 + Vite
+- Carte           : Leaflet + React-Leaflet + react-leaflet-cluster
+                    Tuiles CARTO Voyager (gratuit, sans clé API)
+- Backend/BDD/Auth: Supabase (PostgreSQL + Auth + Realtime)
+- Recherche       : Nominatim / OpenStreetMap (gratuit, sans clé API)
+- Style           : Tailwind CSS v3
+- Routing         : React Router DOM
+- Déploiement     : Vercel (CI/CD automatique via GitHub)
+- Versionning     : Git + GitHub (repo : jeyssee/spotmap)
+
+
+STRUCTURE DES FICHIERS
+----------------------
+spotmap/
+├── .env
+├── .gitignore
+├── tailwind.config.js
+├── postcss.config.js
+├── vite.config.js
+├── index.html
+├── package.json
+└── src/
+    ├── main.jsx
+    ├── App.jsx
+    ├── index.css
+    ├── lib/
+    │   └── supabase.js
+    ├── pages/
+    │   ├── Login.jsx
+    │   ├── Groups.jsx
+    │   ├── GroupMap.jsx
+    │   └── ResetPassword.jsx
+    └── components/
+        ├── PinForm.jsx
+        ├── PinDetail.jsx
+        ├── SearchBar.jsx
+        ├── SidePanel.jsx
+        └── Toast.jsx
+
+
+BASE DE DONNÉES SUPABASE
+------------------------
+
+Tables :
+
+  profiles
+    - id          : uuid (FK auth.users, ON DELETE CASCADE)
+    - username    : text NOT NULL
+    - avatar_url  : text
+
+  groups
+    - id          : uuid (gen_random_uuid)
+    - name        : text NOT NULL
+    - invite_code : text UNIQUE (8 chars auto-générés)
+    - created_by  : uuid (FK profiles)
+    - created_at  : timestamptz
+
+  group_members
+    - group_id    : uuid (FK groups, ON DELETE CASCADE)
+    - user_id     : uuid (FK profiles, ON DELETE CASCADE)
+    - joined_at   : timestamptz
+    - PK          : (group_id, user_id)
+
+  pins
+    - id          : uuid (gen_random_uuid)
+    - group_id    : uuid (FK groups, ON DELETE CASCADE)
+    - user_id     : uuid (FK profiles, ON DELETE CASCADE)
+    - title       : text NOT NULL
+    - description : text
+    - category    : text (default 'other')
+    - lat         : double precision NOT NULL
+    - lng         : double precision NOT NULL
+    - created_at  : timestamptz
+
+  comments
+    - id          : uuid (gen_random_uuid)
+    - pin_id      : uuid (FK pins, ON DELETE CASCADE)
+    - user_id     : uuid (FK profiles, ON DELETE CASCADE)
+    - content     : text NOT NULL
+    - created_at  : timestamptz
+
+  reactions
+    - id          : uuid (gen_random_uuid)
+    - pin_id      : uuid (FK pins, ON DELETE CASCADE)
+    - user_id     : uuid (FK profiles, ON DELETE CASCADE)
+    - type        : text NOT NULL (valeurs : 🔥 ❤️ 👍)
+    - created_at  : timestamptz
+    - UNIQUE      : (pin_id, user_id, type)
+
+Policies RLS actives sur toutes les tables :
+  profiles      : SELECT (true), INSERT (true), UPDATE (uid = id)
+  groups        : SELECT (true), INSERT (uid not null),
+                  UPDATE (uid = created_by), DELETE (uid = created_by)
+  group_members : SELECT (true), INSERT (uid = user_id),
+                  DELETE (uid = user_id)
+  pins          : SELECT (true), INSERT (uid = user_id),
+                  UPDATE (uid = user_id), DELETE (uid = user_id)
+  comments      : SELECT (true), INSERT (uid = user_id)
+  reactions     : SELECT (true), INSERT (uid = user_id),
+                  DELETE (uid = user_id)
+
+Notes importantes BDD :
+  - Les colonnes created_at ont été migrées en timestamptz :
+    ALTER TABLE pins ALTER COLUMN created_at TYPE timestamptz
+    USING created_at AT TIME ZONE 'UTC';
+    (même chose pour groups et comments)
+
+  - Client Supabase avec lock désactivé (évite conflits multi-onglets) :
+    export const supabase = createClient(url, key, {
+      auth: { lock: async (name, acquireTimeout, fn) => fn() }
+    })
+
+
+CATÉGORIES DE PINS
+------------------
+  food    : 🍽️ Food     #ef4444 (rouge)
+  drink   : 🍷 Drink    #a855f7 (violet)
+  culture : 🎨 Culture  #3b82f6 (bleu)
+  sport   : 🏃 Sport    #10b981 (vert)
+  nature  : 🌳 Nature   #22c55e (vert clair)
+  other   : 📍 Autre    #64748b (gris)
+
+
+FONCTIONNALITÉS DÉTAILLÉES
+---------------------------
+
+PAGE LOGIN (Login.jsx)
+  - Inscription : email + mot de passe + username
+  - Connexion : email + mot de passe
+  - Confirmation email obligatoire à l'inscription
+    (activée dans Supabase → Authentication → Sign In/Providers → Email)
+  - Mot de passe oublié : envoi d'un email de reset via Supabase
+  - Afficher / masquer le mot de passe
+  - Validation en temps réel sur chaque champ :
+      email invalide, mot de passe < 6 chars, username vide
+  - Messages d'erreur affichés sous chaque champ
+
+PAGE RESET PASSWORD (ResetPassword.jsx)
+  - Accessible via le lien reçu par email
+  - Saisie + confirmation du nouveau mot de passe
+  - Vérification : min 6 chars, les deux champs identiques
+  - Redirection automatique vers l'accueil après succès
+  - URL de redirect configurée dans :
+    Supabase → Authentication → URL Configuration → Redirect URLs
+    (ajouter : https://ton-app.vercel.app/reset-password)
+
+PAGE GROUPES (Groups.jsx)
+  - Liste uniquement les groupes dont l'utilisateur est membre
+  - Créer un groupe (créateur ajouté automatiquement comme membre)
+  - Rejoindre un groupe via code d'invitation (8 caractères)
+  - Message d'erreur si code invalide ou déjà membre
+  - Stats par groupe : nb de spots · nb de membres
+  - Dernier spot : date relative du dernier pin ajouté
+  - Badge "Nouveauté" : badge bleu si spots ajoutés depuis
+    la dernière visite (stocké en localStorage)
+  - Bouton Inviter : copie le code en un clic (feedback "Copié !")
+  - Renommer un groupe (créateur uniquement, édition inline)
+  - Supprimer un groupe avec confirmation (créateur uniquement,
+    cascade sur pins/commentaires/réactions)
+  - Quitter un groupe (membres non créateurs)
+  - Profil utilisateur : modale dans le header pour modifier le username
+  - Toast de bienvenue "👋 Bienvenue X !" après connexion
+
+PAGE CARTE (GroupMap.jsx)
+  - Carte interactive CARTO Voyager centrée sur Paris par défaut
+  - Markers colorés par catégorie (icônes SVG custom)
+  - Clustering des markers proches (bulle bleue avec compteur)
+  - Clic sur la carte → épingler un spot (marker gris temporaire)
+  - Clic sur un marker → zoom niveau 17 + ouverture de la fiche
+  - Temps réel : nouveaux pins visibles sans rafraîchir (Supabase Realtime)
+  - Barre de recherche d'adresse (autocomplétion Nominatim, debounce 400ms)
+  - Bouton "📍 Ma position" : géolocalisation, centre la carte sur l'utilisateur
+  - Bouton "🎯 Centrer" : zoom sur l'ensemble des pins visibles
+  - Code d'invitation dans le header avec bouton copier (📋 → ✅)
+  - Sidebar ouverte/fermée via bouton toggle sur le bord droit
+  - Toast de confirmation après ajout ✅, modification ✏️, suppression 🗑️
+
+SIDEBAR (SidePanel.jsx)
+  Onglet Spots :
+    - Filtres par catégorie (colorés)
+    - Tri par date (plus récent / plus ancien)
+    - Liste : nom, auteur, description tronquée,
+              nb commentaires 💬, nb réactions ⚡, date relative
+    - Badge "moi" sur ses propres spots
+    - Filtre actif par membre affiché avec bouton pour le désactiver
+
+  Onglet Membres :
+    - Liste des membres avec avatar initiale
+    - Nombre de spots par membre
+    - Clic sur un membre → filtre carte + liste sur ses spots
+      + zoom automatique sur ses pins
+    - Bouton "Voir tous les spots" pour désactiver le filtre
+
+FORMULAIRE NOUVEAU PIN (PinForm.jsx)
+  - Titre (requis)
+  - Description (optionnel)
+  - Sélection de catégorie (6 boutons)
+  - Bouton fermer
+
+FICHE DÉTAIL PIN (PinDetail.jsx)
+  - Badge catégorie coloré, titre, auteur, description
+  - Réactions 🔥 ❤️ 👍 : toggle, compteur, surbrillance si réagi
+  - Commentaires : liste username + contenu + formulaire d'ajout
+  - Modifier ✏️ : créateur uniquement, formulaire inline
+    (titre, description, catégorie modifiables)
+  - Supprimer 🗑️ : créateur uniquement, avec confirmation
+
+RECHERCHE D'ADRESSE (SearchBar.jsx)
+  - Déclenché après 3 caractères, debounce 400ms
+  - 5 suggestions Nominatim (nom principal + détails)
+  - Sélection → zoom niveau 17 sur l'adresse
+  - Bouton ✕ pour vider la recherche
+
+TOAST (Toast.jsx)
+  - Bulle noire en bas au centre, disparaît après 3 secondes
+  - Utilisé pour : spot ajouté, modifié, supprimé,
+                   bienvenue, géolocalisation
+
+
+DÉPLOIEMENT
+-----------
+  Vercel :
+    - Déploiement automatique à chaque git push sur main
+    - Variables d'environnement à configurer :
+        VITE_SUPABASE_URL
+        VITE_SUPABASE_ANON_KEY
+
+  Supabase (configuration) :
+    - Confirmation email : activée
+      (Authentication → Sign In/Providers → Email → Confirm email)
+    - URL de redirect pour reset password :
+      (Authentication → URL Configuration → Redirect URLs)
+      Ajouter : https://ton-app.vercel.app/reset-password
+
+
+CAPACITÉ ET LIMITES
+-------------------
+  Supabase free tier  : 50 000 utilisateurs actifs/mois, 500 MB BDD
+  Vercel free tier    : 100 GB bande passante/mois
+  CARTO tiles         : gratuit, sans limite explicite
+  Nominatim           : gratuit, 1 requête/seconde max
+  → Confortable pour une démo de 50 personnes simultanées
+
+
+POINTS D'ATTENTION
+------------------
+  1. Supabase met en veille les projets gratuits après 1 semaine
+     d'inactivité → se connecter la veille d'une démo pour le réveiller.
+
+  2. En cas de bug d'authentification (session corrompue) :
+     Ouvrir la console navigateur et taper :
+     localStorage.removeItem('sb-zlrecbrbebcghjassypw-auth-token')
+     puis rafraîchir la page.
+
+  3. La confirmation email est activée → les nouveaux utilisateurs
+     doivent valider leur email avant de pouvoir se connecter.
+
+  4. Le lock Supabase est désactivé dans supabase.js pour éviter
+     les conflits NavigatorLockAcquireTimeoutError en multi-onglets.

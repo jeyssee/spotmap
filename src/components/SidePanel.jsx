@@ -2,20 +2,42 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 function timeAgo(dateStr) {
+  if (!dateStr) return null
   const now = new Date()
   const date = new Date(dateStr)
   const diff = Math.floor((now - date) / 1000)
+  if (isNaN(diff)) return null
   if (diff < 60) return "à l'instant"
   if (diff < 3600) return `il y a ${Math.floor(diff / 60)}min`
   if (diff < 86400) return `il y a ${Math.floor(diff / 3600)}h`
   return `il y a ${Math.floor(diff / 86400)}j`
 }
 
-export default function SidePanel({ pins, categories, activeCategory, onCategoryChange, onPinClick, filteredPins, session, groupId, activeMember, onMemberFilter }) {
+const ClockIcon = ({ size = 11 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  </svg>
+)
+const MessageIcon = ({ size = 11 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+)
+const ZapIcon = ({ size = 11 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  </svg>
+)
+const XIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+)
+
+export default function SidePanel({ pins, categories, activeCategory, onCategoryChange, onPinClick, filteredPins, session, groupId, activeMember, onMemberFilter, onClose }) {
   const [activeTab, setActiveTab] = useState('spots')
   const [members, setMembers] = useState([])
   const [sortOrder, setSortOrder] = useState('desc')
-
   const userId = session?.user?.id
 
   useEffect(() => {
@@ -31,158 +53,187 @@ export default function SidePanel({ pins, categories, activeCategory, onCategory
   }
 
   const sortedPins = [...filteredPins].sort((a, b) => {
-    const da = new Date(a.created_at)
-    const db = new Date(b.created_at)
+    const da = new Date(a.created_at), db = new Date(b.created_at)
     return sortOrder === 'desc' ? db - da : da - db
   })
 
-  return (
-    <div style={{ width: '288px', flexShrink: 0 }} className="bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+  const tabStyle = (active) => ({
+    flex: 1, padding: '10px', border: 'none', background: 'none',
+    fontSize: '13px', fontWeight: active ? '600' : '400',
+    color: active ? 'var(--text-primary)' : 'var(--text-tertiary)',
+    cursor: 'pointer',
+    borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+    transition: 'all 0.15s',
+  })
 
-      {/* Onglets */}
-      <div className="flex border-b border-slate-200">
+  return (
+    <div style={{
+      width: '280px',
+      height: '100%',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      backdropFilter: 'blur(16px)',
+      borderRadius: '20px',
+      border: '1px solid var(--border)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }}>
+
+      {/* Header avec onglets et fermeture */}
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingRight: '8px' }}>
+        <button style={tabStyle(activeTab === 'spots')} onClick={() => setActiveTab('spots')}>Spots</button>
+        <button style={tabStyle(activeTab === 'members')} onClick={() => setActiveTab('members')}>Membres</button>
         <button
-          onClick={() => setActiveTab('spots')}
-          className={`flex-1 py-3 text-sm font-medium transition ${activeTab === 'spots' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+          onClick={onClose}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '4px', flexShrink: 0 }}
         >
-          📍 Spots
-        </button>
-        <button
-          onClick={() => setActiveTab('members')}
-          className={`flex-1 py-3 text-sm font-medium transition ${activeTab === 'members' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          👥 Membres
+          <XIcon size={14} />
         </button>
       </div>
 
       {activeTab === 'spots' && (
         <>
-          {/* Filtres + tri */}
-          <div className="p-3 border-b border-slate-100 space-y-2">
-            {/* Filtre membre actif */}
+          {/* Filtres */}
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
             {activeMember && (
-              <div className="flex items-center justify-between bg-blue-50 px-2 py-1 rounded-lg">
-                <span className="text-xs text-blue-700">Spots de {activeMember.username}</span>
-                <button onClick={() => onMemberFilter(null)} className="text-blue-400 hover:text-blue-600 text-xs">✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--accent-light)', borderRadius: '8px', padding: '5px 10px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: '500' }}>{activeMember.username}</span>
+                <button onClick={() => onMemberFilter(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', display: 'flex', padding: 0 }}>
+                  <XIcon size={12} />
+                </button>
               </div>
             )}
-
-            {/* Filtre catégorie */}
-            <div className="flex flex-wrap gap-1.5">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '8px' }}>
               <button
                 onClick={() => onCategoryChange(null)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${activeCategory === null ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                style={{
+                  padding: '3px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: '500', cursor: 'pointer',
+                  backgroundColor: activeCategory === null ? 'var(--text-primary)' : 'var(--bg-input)',
+                  color: activeCategory === null ? 'white' : 'var(--text-secondary)',
+                  border: '1px solid ' + (activeCategory === null ? 'var(--text-primary)' : 'var(--border)'),
+                }}
               >
                 Tous ({pins.length})
               </button>
               {Object.entries(categories).map(([key, { label, color }]) => {
                 const count = pins.filter(p => p.category === key).length
                 if (count === 0) return null
+                const isActive = activeCategory === key
                 return (
-                  <button
-                    key={key}
-                    onClick={() => onCategoryChange(activeCategory === key ? null : key)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${activeCategory === key ? 'text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                    style={activeCategory === key ? { backgroundColor: color } : {}}
-                  >
+                  <button key={key} onClick={() => onCategoryChange(isActive ? null : key)} style={{
+                    padding: '3px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: '500', cursor: 'pointer',
+                    backgroundColor: isActive ? color : 'var(--bg-input)',
+                    color: isActive ? 'white' : 'var(--text-secondary)',
+                    border: '1px solid ' + (isActive ? color : 'var(--border)'),
+                  }}>
                     {label} ({count})
                   </button>
                 )
               })}
             </div>
-
-            {/* Tri par date */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Trier :</span>
-              <button
-                onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                {sortOrder === 'desc' ? '↓ Plus récent' : '↑ Plus ancien'}
-              </button>
-            </div>
+            <button
+              onClick={() => setSortOrder(s => s === 'desc' ? 'asc' : 'desc')}
+              style={{ fontSize: '11px', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <ClockIcon size={11} />
+              {sortOrder === 'desc' ? 'Plus récent' : 'Plus ancien'}
+            </button>
           </div>
 
           {/* Liste spots */}
-          <div className="flex-1 overflow-y-auto">
+          <div style={{ flex: 1, overflowY: 'auto' }}>
             {sortedPins.length === 0 ? (
-              <p className="text-center text-slate-400 text-sm p-6">Aucun spot</p>
-            ) : (
-              sortedPins.map((pin) => {
-                const commentCount = pin.comments?.length || 0
-                const reactionCount = pin.reactions?.length || 0
-                const isOwner = userId && pin.user_id === userId
-                return (
-                  <div
-                    key={pin.id}
-                    onClick={() => onPinClick(pin)}
-                    className="px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
-                  >
-                    <div className="flex items-start gap-2">
-                      <span
-                        className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
-                        style={{ backgroundColor: categories[pin.category]?.color || '#64748b' }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-slate-900 truncate">{pin.title}</p>
-                        <p className="text-xs text-slate-500">par {pin.profiles?.username || 'Anonyme'}</p>
-                        {pin.description && (
-                          <p className="text-xs text-slate-400 mt-0.5 truncate">{pin.description}</p>
-                        )}
-                        <div className="flex items-center gap-2 mt-1">
-                          {commentCount > 0 && <span className="text-xs text-slate-400">💬 {commentCount}</span>}
-                          {reactionCount > 0 && <span className="text-xs text-slate-400">⚡ {reactionCount}</span>}
-                          <span className="text-xs text-slate-300">{timeAgo(pin.created_at)}</span>
-                        </div>
+              <p style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '13px', padding: '32px 16px' }}>Aucun spot</p>
+            ) : sortedPins.map((pin) => {
+              const isOwner = userId && pin.user_id === userId
+              const commentCount = pin.comments?.length || 0
+              const reactionCount = pin.reactions?.length || 0
+              return (
+                <div
+                  key={pin.id}
+                  onClick={() => onPinClick(pin)}
+                  style={{ padding: '11px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-input)'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: categories[pin.category]?.color || '#64748b', flexShrink: 0, marginTop: '5px' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                        <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pin.title}</p>
+                        {isOwner && <span style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: '600', flexShrink: 0 }}>moi</span>}
                       </div>
-                      {isOwner && (
-                        <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded flex-shrink-0">moi</span>
-                      )}
+                      <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '1px 0 0' }}>{pin.profiles?.username}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px' }}>
+                        {commentCount > 0 && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                            <MessageIcon />{commentCount}
+                          </span>
+                        )}
+                        {reactionCount > 0 && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                            <ZapIcon />{reactionCount}
+                          </span>
+                        )}
+                        {timeAgo(pin.created_at) && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                            <ClockIcon />{timeAgo(pin.created_at)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )
-              })
-            )}
+                </div>
+              )
+            })}
           </div>
         </>
       )}
 
       {activeTab === 'members' && (
-        <div className="flex-1 overflow-y-auto">
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {members.length === 0 ? (
-            <p className="text-center text-slate-400 text-sm p-6">Chargement...</p>
-          ) : (
-            members.map((m) => {
-              const spotCount = pins.filter(p => p.user_id === m.user_id).length
-              const isActive = activeMember?.id === m.user_id
-              return (
-                <div
-                  key={m.user_id}
-                  onClick={() => onMemberFilter(isActive ? null : { id: m.user_id, username: m.profiles?.username })}
-                  className={`px-4 py-3 border-b border-slate-100 flex items-center gap-3 cursor-pointer transition ${isActive ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${isActive ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-600'}`}>
-                    {m.profiles?.username?.[0]?.toUpperCase() || '?'}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-900">{m.profiles?.username || 'Anonyme'}</p>
-                    <p className="text-xs text-slate-400">{spotCount} spot{spotCount > 1 ? 's' : ''}</p>
-                  </div>
-                  {m.user_id === userId && (
-                    <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">moi</span>
-                  )}
-                  {isActive && (
-                    <span className="text-xs text-blue-500">✓</span>
-                  )}
+            <p style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '13px', padding: '32px 16px' }}>Chargement...</p>
+          ) : members.map((m) => {
+            const count = pins.filter(p => p.user_id === m.user_id).length
+            const isActive = activeMember?.id === m.user_id
+            return (
+              <div
+                key={m.user_id}
+                onClick={() => onMemberFilter(isActive ? null : { id: m.user_id, username: m.profiles?.username })}
+                style={{
+                  padding: '11px 14px', borderBottom: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  cursor: 'pointer',
+                  backgroundColor: isActive ? 'var(--accent-light)' : 'transparent',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--bg-input)' }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = isActive ? 'var(--accent-light)' : 'transparent' }}
+              >
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  backgroundColor: isActive ? 'var(--accent)' : 'var(--bg-input)',
+                  border: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '13px', fontWeight: '700',
+                  color: isActive ? 'white' : 'var(--text-secondary)', flexShrink: 0,
+                }}>
+                  {m.profiles?.username?.[0]?.toUpperCase() || '?'}
                 </div>
-              )
-            })
-          )}
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>{m.profiles?.username || 'Anonyme'}</p>
+                  <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '2px 0 0' }}>
+                    {count} spot{count > 1 ? 's' : ''}{m.user_id === userId ? ' · vous' : ''}
+                  </p>
+                </div>
+                {isActive && <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>✓</span>}
+              </div>
+            )
+          })}
           {activeMember && (
-            <button
-              onClick={() => onMemberFilter(null)}
-              className="w-full py-2 text-xs text-slate-500 hover:text-slate-700 border-t border-slate-100"
-            >
+            <button onClick={() => onMemberFilter(null)} style={{ width: '100%', padding: '12px', fontSize: '12px', color: 'var(--text-tertiary)', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
               Voir tous les spots
             </button>
           )}

@@ -1,169 +1,97 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-export default function PinForm({ position, groupId, userId, categories, onClose, onCreated, mapRef }) {
+const XIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+)
+
+export default function PinForm({ position, groupId, userId, categories, onClose, onCreated }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('food')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Recherche d'adresse
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState([])
-  const [searchLoading, setSearchLoading] = useState(false)
-  const [selectedAddress, setSelectedAddress] = useState(null)
-
-  const searchAddress = async (query) => {
-    if (query.length < 3) {
-      setSearchResults([])
-      return
-    }
-    setSearchLoading(true)
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
-        { headers: { 'Accept-Language': 'fr' } }
-      )
-      const data = await res.json()
-      setSearchResults(data)
-    } catch (e) {
-      console.error(e)
-    }
-    setSearchLoading(false)
-  }
-
-  const handleSearchInput = (e) => {
-    const val = e.target.value
-    setSearchQuery(val)
-    setSelectedAddress(null)
-    searchAddress(val)
-  }
-
-  const selectAddress = (result) => {
-    setSelectedAddress(result)
-    setSearchQuery(result.display_name)
-    setSearchResults([])
-    // Déplace la carte vers l'adresse trouvée
-    if (mapRef?.current) {
-      mapRef.current.setView([parseFloat(result.lat), parseFloat(result.lon)], 16)
-    }
-    // Pré-remplit le titre si vide
-    if (!title) {
-      const name = result.name || result.address?.road || result.display_name.split(',')[0]
-      setTitle(name)
-    }
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
-
-    // Utilise la position de l'adresse recherchée ou du clic sur la carte
-    const lat = selectedAddress ? parseFloat(selectedAddress.lat) : position.lat
-    const lng = selectedAddress ? parseFloat(selectedAddress.lon) : position.lng
-
+    setLoading(true); setError(null)
     const { error } = await supabase.from('pins').insert({
-      group_id: groupId,
-      user_id: userId,
-      title,
-      description,
-      category,
-      lat,
-      lng,
+      group_id: groupId, user_id: userId,
+      title, description, category,
+      lat: position.lat, lng: position.lng,
     })
+    if (error) { setError(error.message); setLoading(false) }
+    else onCreated()
+  }
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
-      onCreated()
-    }
+  const inputStyle = {
+    width: '100%', padding: '10px 14px',
+    backgroundColor: 'var(--bg-input)', border: '1px solid var(--border)',
+    borderRadius: '12px', fontSize: '13px', color: 'var(--text-primary)',
+    outline: 'none', boxSizing: 'border-box',
   }
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white rounded-xl shadow-xl p-6 z-[1000]">
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="font-bold text-lg text-slate-900">Nouveau spot 📍</h3>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
+    <div style={{
+      position: 'absolute', bottom: '16px', left: '16px', right: '16px',
+      maxWidth: '360px', marginLeft: 'auto', marginRight: 'auto',
+      backgroundColor: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(12px)',
+      borderRadius: '20px', padding: '20px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+      border: '1px solid var(--border)',
+      zIndex: 1000,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Nouveau spot</h3>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex' }}>
+          <XIcon size={18} />
+        </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-3">
-
-        {/* Recherche d'adresse */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="🔍 Rechercher une adresse..."
-            value={searchQuery}
-            onChange={handleSearchInput}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {searchLoading && (
-            <p className="text-xs text-slate-400 mt-1">Recherche...</p>
-          )}
-          {searchResults.length > 0 && (
-            <ul className="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 z-10 max-h-48 overflow-y-auto">
-              {searchResults.map((result) => (
-                <li
-                  key={result.place_id}
-                  onClick={() => selectAddress(result)}
-                  className="px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
-                >
-                  {result.display_name}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {selectedAddress && (
-          <p className="text-xs text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">
-            ✅ Position mise à jour sur la carte
-          </p>
-        )}
-
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <input
-          type="text"
-          placeholder="Nom du spot"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          type="text" placeholder="Nom du spot" value={title}
+          onChange={(e) => setTitle(e.target.value)} required
+          style={inputStyle}
         />
-
         <textarea
-          placeholder="Ton avis, un conseil... (optionnel)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          placeholder="Ton avis... (optionnel)" value={description}
+          onChange={(e) => setDescription(e.target.value)} rows={2}
+          style={{ ...inputStyle, resize: 'none', fontFamily: 'inherit' }}
         />
 
-        <div className="grid grid-cols-3 gap-2">
-          {Object.entries(categories).map(([key, { label }]) => (
+        {/* Catégories */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {Object.entries(categories).map(([key, { label, color }]) => (
             <button
-              key={key}
-              type="button"
+              key={key} type="button"
               onClick={() => setCategory(key)}
-              className={`px-3 py-2 text-sm rounded-lg border transition ${
-                category === key
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
+              style={{
+                padding: '5px 12px', borderRadius: '100px',
+                fontSize: '12px', fontWeight: '500', cursor: 'pointer',
+                backgroundColor: category === key ? color : 'var(--bg-input)',
+                color: category === key ? 'white' : 'var(--text-secondary)',
+                border: '1px solid ' + (category === key ? color : 'var(--border)'),
+                transition: 'all 0.15s',
+              }}
             >
               {label}
             </button>
           ))}
         </div>
 
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error && <p style={{ color: '#EF4444', fontSize: '12px', margin: 0 }}>{error}</p>}
 
         <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+          type="submit" disabled={loading}
+          style={{
+            backgroundColor: 'var(--accent)', color: 'white',
+            border: 'none', borderRadius: '12px', padding: '11px',
+            fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+            opacity: loading ? 0.6 : 1, marginTop: '2px',
+          }}
         >
           {loading ? 'Enregistrement...' : 'Épingler ce spot'}
         </button>

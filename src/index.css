@@ -1,3 +1,4 @@
+@import './styles/variables.css';
 @import 'leaflet/dist/leaflet.css';
 
 @tailwind base;
@@ -11,7 +12,7 @@ html, body, #root {
 }
 
 body {
-  background: #f8fafc;
+  background: #ffffff;
 }
 
 .leaflet-container {

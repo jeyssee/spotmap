@@ -1,0 +1,72 @@
+/* ================================
+   SPOTMAP — DESIGN SYSTEM
+   Modifie --accent pour changer
+   la couleur principale partout
+================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&display=swap');
+
+:root {
+  --accent: #FF8045;
+  --accent-light: #FFF0E8;
+  --accent-border: #FFD4BB;
+  --bg-page: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-input: #F8F8F8;
+  --text-primary: #111111;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --border: #EEEEEE;
+  --success: #22C55E;
+  --danger: #EF4444;
+}
+
+.logo-text {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+}
+
+/* ── Animations ── */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes navItemIn {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes orb1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(40px, -60px) scale(1.1); }
+  66%       { transform: translate(-30px, 40px) scale(0.95); }
+}
+
+@keyframes orb2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-50px, 30px) scale(1.05); }
+  66%       { transform: translate(40px, -40px) scale(1.1); }
+}
+
+@keyframes orb3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(30px, 50px) scale(0.9); }
+}
+
+/* ── Classes utilitaires ── */
+
+.orb-1 { animation: orb1 12s ease-in-out infinite; }
+.orb-2 { animation: orb2 15s ease-in-out infinite; }
+.orb-3 { animation: orb3 10s ease-in-out infinite; }
+
+.card-anim {
+  opacity: 0;
+  animation: fadeUp 0.4s ease forwards;
+}
+
+.nav-item {
+  opacity: 0;
+  animation: navItemIn 0.3s ease forwards;
+}
